@@ -1,0 +1,89 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import joblib
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import roc_curve, roc_auc_score, confusion_matrix, classification_report
+
+# Set plot style
+sns.set(style="whitegrid")
+
+# Load Model and Scaler
+model = joblib.load("logistic_model.pkl")
+scaler = joblib.load("scaler.pkl")
+
+# App Title
+st.title("Breast Cancer Prediction App")
+st.markdown("""
+Predict whether a breast tumor is **Malignant** or **Benign** using Logistic Regression.
+""")
+
+# Sidebar - User Inputs
+st.sidebar.header("Input Features")
+feature_inputs = {}
+for feature in model.feature_names_in_:
+    feature_inputs[feature] = st.sidebar.number_input(feature, value=0.0)
+
+# Create DataFrame and scale
+input_df = pd.DataFrame(feature_inputs, index=[0])
+input_scaled = scaler.transform(input_df)
+
+# Prediction
+pred_class = model.predict(input_scaled)[0]
+pred_prob = model.predict_proba(input_scaled)[0,1]
+
+# Display prediction
+st.subheader("Prediction Result")
+if pred_class == 1:
+    st.error(f"Prediction: Malignant (Probability: {pred_prob:.2f})")
+else:
+    st.success(f"Prediction: Benign (Probability: {1-pred_prob:.2f})")
+
+# Load full dataset for evaluation visuals
+data = pd.read_csv("breast_cancer_data.csv")
+data = data.drop(columns=['Unnamed: 32', 'id'])
+data['diagnosis'] = data['diagnosis'].map({'M': 1, 'B': 0})
+X_full = data.drop('diagnosis', axis=1)
+y_full = data['diagnosis']
+X_scaled_full = scaler.transform(X_full)
+y_pred_full = model.predict(X_scaled_full)
+
+# Optional: ROC Curve
+if st.checkbox("Show ROC Curve"):
+    y_prob_full = model.predict_proba(X_scaled_full)[:,1]
+    fpr, tpr, thresholds = roc_curve(y_full, y_prob_full)
+    auc_score = roc_auc_score(y_full, y_prob_full)
+    
+    plt.figure(figsize=(6,6))
+    plt.plot(fpr, tpr, label=f'ROC Curve (AUC={auc_score:.2f})')
+    plt.plot([0,1], [0,1], 'k--')
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('ROC Curve')
+    plt.legend()
+    st.pyplot(plt)
+
+# Optional: Confusion Matrix
+if st.checkbox("Show Confusion Matrix"):
+    cm = confusion_matrix(y_full, y_pred_full)
+    plt.figure(figsize=(5,4))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+    plt.xlabel('Predicted')
+    plt.ylabel('Actual')
+    plt.title('Confusion Matrix')
+    st.pyplot(plt)
+    
+    # Also show classification report
+    st.text("Classification Report:")
+    report = classification_report(y_full, y_pred_full, target_names=['Benign','Malignant'])
+    st.text(report)
+
+# Optional: Feature Distribution Plots
+if st.checkbox("Show Feature Distributions"):
+    numeric_features = X_full.columns[:5]  # show first 5 features as sample
+    for feature in numeric_features:
+        plt.figure()
+        sns.histplot(data, x=feature, hue='diagnosis', kde=True, palette={0:'green',1:'red'}, alpha=0.5)
+        plt.title(f'Distribution of {feature} by Diagnosis')
+        st.pyplot(plt)
