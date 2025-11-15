@@ -9,55 +9,81 @@ from sklearn.metrics import roc_curve, roc_auc_score, confusion_matrix, classifi
 # Set plot style
 sns.set(style="whitegrid")
 
-# Load Model and Scaler
+# -----------------------------
+# STEP 1 — Load Model & Scaler
+# -----------------------------
 model = joblib.load("logistic_model.pkl")
 scaler = joblib.load("scaler.pkl")
 
-# Load dataset (to recover feature names if missing)
+# -----------------------------
+# STEP 2 — Load Dataset
+# -----------------------------
 data = pd.read_csv("breast_cancer_data.csv")
 data = data.drop(columns=['Unnamed: 32', 'id'])
 data['diagnosis'] = data['diagnosis'].map({'M': 1, 'B': 0})
 
 # Extract feature names safely
 feature_names = data.drop('diagnosis', axis=1).columns
-
-# Fix missing .feature_names_in_ if model doesn't have it
 if not hasattr(model, "feature_names_in_"):
     model.feature_names_in_ = feature_names
 
-# App Title
+# -----------------------------
+# STEP 3 — Streamlit Layout
+# -----------------------------
+
+# Sidebar: Project Info only
+st.sidebar.header("About This Project")
+st.sidebar.info("""
+This app predicts whether a breast tumor is **Malignant** or **Benign** using a **Logistic Regression model**.
+
+- Model trained on Breast Cancer dataset  
+- Features include: radius_mean, texture_mean, perimeter_mean, area_mean, smoothness_mean, etc.  
+- Adjust input features below and get real-time predictions.
+""")
+
+# Main Page: Title
 st.title("Breast Cancer Prediction")
-st.info("Predict whether a breast tumor is **Malignant** or **Benign** using Logistic Regression.")
+st.subheader("Input Features")
 
-# Sidebar - User Inputs
-st.sidebar.header("Input Features")
-
+# -----------------------------
+# STEP 4 — Feature Inputs in Main Page
+# -----------------------------
 feature_inputs = {}
 for feature in model.feature_names_in_:
-    feature_inputs[feature] = st.sidebar.number_input(feature, value=0.0)
+    feature_inputs[feature] = st.number_input(
+        label=feature,
+        min_value=0.0,
+        max_value=1000.0,
+        value=float(data[feature].mean()),
+        step=0.01,
+        format="%.2f"
+    )
 
 # Create DataFrame and scale
 input_df = pd.DataFrame(feature_inputs, index=[0])
 input_scaled = scaler.transform(input_df)
 
-# Prediction
+# -----------------------------
+# STEP 5 — Prediction
+# -----------------------------
 pred_class = model.predict(input_scaled)[0]
 pred_prob = model.predict_proba(input_scaled)[0, 1]
 
-# Display prediction
 st.subheader("Prediction Result")
 if pred_class == 1:
     st.error(f"Prediction: Malignant (Probability: {pred_prob:.2f})")
 else:
     st.success(f"Prediction: Benign (Probability: {1 - pred_prob:.2f})")
 
-# Load full dataset for evaluation visuals
+# -----------------------------
+# STEP 6 — Evaluation Visuals (Optional)
+# -----------------------------
 X_full = data.drop('diagnosis', axis=1)
 y_full = data['diagnosis']
 X_scaled_full = scaler.transform(X_full)
 y_pred_full = model.predict(X_scaled_full)
 
-# Optional: ROC Curve
+# ROC Curve
 if st.checkbox("Show ROC Curve"):
     y_prob_full = model.predict_proba(X_scaled_full)[:, 1]
     fpr, tpr, thresholds = roc_curve(y_full, y_prob_full)
@@ -72,7 +98,7 @@ if st.checkbox("Show ROC Curve"):
     plt.legend()
     st.pyplot(plt)
 
-# Optional: Confusion Matrix
+# Confusion Matrix
 if st.checkbox("Show Confusion Matrix"):
     cm = confusion_matrix(y_full, y_pred_full)
     plt.figure(figsize=(5, 4))
@@ -82,16 +108,11 @@ if st.checkbox("Show Confusion Matrix"):
     plt.title('Confusion Matrix')
     st.pyplot(plt)
 
-    # Classification report
     st.text("Classification Report:")
-    report = classification_report(
-        y_full, 
-        y_pred_full,
-        target_names=['Benign', 'Malignant']
-    )
+    report = classification_report(y_full, y_pred_full, target_names=['Benign', 'Malignant'])
     st.text(report)
 
-# Optional: Feature Distribution Plots
+# Feature Distribution Plots
 if st.checkbox("Show Feature Distributions"):
     numeric_features = X_full.columns[:5]  # First 5 features
     for feature in numeric_features:
