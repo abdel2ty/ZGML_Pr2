@@ -26,10 +26,8 @@ if not hasattr(model, "feature_names_in_"):
     model.feature_names_in_ = feature_names
 
 # App Title
-st.title("Breast Cancer Prediction App")
-st.markdown("""
-Predict whether a breast tumor is **Malignant** or **Benign** using Logistic Regression.
-""")
+st.title("Breast Cancer Prediction")
+st.info("Predict whether a breast tumor is **Malignant** or **Benign** using Logistic Regression.")
 
 # Sidebar - User Inputs
 st.sidebar.header("Input Features")
